@@ -7,5 +7,4 @@ public interface BeanNameAware {
 
     void setBeanName(String beanName);
 
-    void test();
 }
