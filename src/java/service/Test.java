@@ -15,5 +15,8 @@ public class Test {
         MyApplicationContext ac = new MyApplicationContext(AppConfig.class);
 
         UserService userService = (UserService) ac.getBean("userService");
+
+        userService.test();
+
     }
 }
