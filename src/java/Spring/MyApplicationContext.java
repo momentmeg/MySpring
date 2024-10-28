@@ -5,6 +5,7 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -27,6 +28,9 @@ public class MyApplicationContext {
 
     //单例池
     private ConcurrentHashMap<String, Object> singletonObjects = new ConcurrentHashMap<>();
+
+    //BeanPostProcessor List
+    private ArrayList<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
 
 
     public MyApplicationContext(Class configClass) {
@@ -69,12 +73,21 @@ public class MyApplicationContext {
                             Class clazz = classLoader.loadClass(className);
                             //判断类上是否有Component注解
                             if (clazz.isAnnotationPresent(Component.class)) {
+
+                                //day3 BeanPostProcessor
+                                //isAssignableFrom 是判断 clazz是否实现了BeanPostProcessor接口
+                                if(BeanPostProcessor.class.isAssignableFrom(clazz)){
+                                    BeanPostProcessor instance = (BeanPostProcessor) clazz.newInstance();
+                                    beanPostProcessorList.add(instance);
+                                }
+
+
+
                                 //获取Component的值（beanName），这里是自定义的值
                                 Component component = (Component) clazz.getAnnotation(Component.class);
                                 String beanName = component.value();
-
                                 //beanName，没有定义的情况
-                                if("".equals(beanName)){
+                                if ("".equals(beanName)) {
                                     //Introspector 是java.beans包下的类，decapitalize会让第一个字母小写
                                     beanName = Introspector.decapitalize(clazz.getSimpleName());
                                 }
@@ -98,6 +111,10 @@ public class MyApplicationContext {
                             }
                         } catch (ClassNotFoundException e) {
                             e.printStackTrace();
+                        } catch (InstantiationException e) {
+                            throw new RuntimeException(e);
+                        } catch (IllegalAccessException e) {
+                            throw new RuntimeException(e);
                         }
                     }
                 }
@@ -115,24 +132,17 @@ public class MyApplicationContext {
             if (beanDefinition.getScope().equals("singleton")) {
 
                 Object bean = createBean(beanName, beanDefinition);
-                singletonObjects.put(beanName,bean);
+                singletonObjects.put(beanName, bean);
             }
 
         }
     }
 
 
-
-
-
-
-
-
     /**
      * 创建单例bean方法
      */
-    private Object createBean(String beanName,BeanDefinition beanDefinition)
-    {
+    private Object createBean(String beanName, BeanDefinition beanDefinition) {
         //获取bean的类
         Class clazz = beanDefinition.getBeanClass();
 
@@ -143,21 +153,41 @@ public class MyApplicationContext {
             //属性填充，@Autowired依赖注入的的实现
             for (Field f : clazz.getDeclaredFields()) {
                 //是否有Autowired注解
-                if(f.isAnnotationPresent(Autowired.class)){
+                if (f.isAnnotationPresent(Autowired.class)) {
                     //打开权限
                     f.setAccessible(true);
                     //为该属性赋上新值
-                    f.set(instance,getBean(f.getName()));
+                    f.set(instance, getBean(f.getName()));
                 }
             }
 
             //BeanNameAware的回调
             //判断instance是否实现了BeanNameAware的接口
-            if(instance instanceof BeanNameAware)
-            {
+            if (instance instanceof BeanNameAware) {
                 ((BeanNameAware) instance).setBeanName(beanName);
             }
 
+
+            //初始化前的操作 day3
+            for(BeanPostProcessor beanPostProcessor : beanPostProcessorList)
+            {
+               instance = beanPostProcessor.postProcessBeforeInitialization(beanName,instance);
+            }
+
+
+            //初始化 day3
+            if (instance instanceof InitializingBean) {
+                ((InitializingBean) instance).AfterPropertiesSet();
+            }
+
+
+            //初始化后 AOP BeanPostProcessor Bean的后置处理器 day3
+            for(BeanPostProcessor beanPostProcessor : beanPostProcessorList)
+            {
+                //如果在postProcessAfterInitialization并没有做其它操纵，则依旧是instance
+                //如果做了其他操作例如 代理对象，那么最后return的就是代理对象
+               instance = beanPostProcessor.postProcessAfterInitialization(beanName,instance);
+            }
 
 
             return instance;
@@ -174,9 +204,6 @@ public class MyApplicationContext {
 
 //        return null;
     }
-
-
-
 
 
     /**
@@ -198,16 +225,16 @@ public class MyApplicationContext {
             if (Scope.equals("singleton")) { //如果是单例直接在单例池里拿
                 Object bean = singletonObjects.get(beanName);
 
-                if(bean == null) // 如果bean为null，说明有这个bean但没在单例池中，于是再创建
+                if (bean == null) // 如果bean为null，说明有这个bean但没在单例池中，于是再创建
                 {
-                    bean = createBean(beanName,beanDefinition);
-                    singletonObjects.put(beanName,bean);
+                    bean = createBean(beanName, beanDefinition);
+                    singletonObjects.put(beanName, bean);
                 }
 
                 return bean;
 
             } else {
-                return createBean(beanName,beanDefinition);
+                return createBean(beanName, beanDefinition);
             }
         }
 

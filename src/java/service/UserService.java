@@ -1,9 +1,6 @@
 package service;
 
-import Spring.Autowired;
-import Spring.BeanNameAware;
-import Spring.Component;
-import Spring.Scope;
+import Spring.*;
 
 /**
  * @FileName UserService
@@ -13,7 +10,7 @@ import Spring.Scope;
  **/
 
 @Component
-public class UserService implements BeanNameAware {
+public class UserService implements UserInterface {
 
     @Autowired
     private OrderService orderService;
@@ -23,7 +20,8 @@ public class UserService implements BeanNameAware {
 
 
     @Override
-    public void setBeanName(String beanName) {
-        this.beanName = beanName;
+    public void test() {
+        System.out.println("userService");
     }
+
 }
